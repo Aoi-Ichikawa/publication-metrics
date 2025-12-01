@@ -6,9 +6,6 @@
 #  Environment: Google Colab
 # ============================================
 
-# 1. Install Dependencies
-!pip install requests pandas plotly beautifulsoup4 textblob googletrans==4.0.0-rc1 langdetect lxml tqdm googlesearch-python pytz tabulate kaleido==0.2.1 slack_sdk > /dev/null
-
 import requests
 import pandas as pd
 import json
