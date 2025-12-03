@@ -1,9 +1,5 @@
 # ============================================
-#  Aoi Ichikawa Publication Intelligence Tracker (Robust Edition v31 - Diagnostic & Full Fix)
-#  Target: Zenodo (API), engrXiv (Search Page Scraping), Altmetric, ResearchGate
-#  Social: Altmetric, Hacker News + Sentiment Analysis
-#  Output: CSV, HTML, PNG (Image), Markdown (Pretty Table), Slack File Upload (SDK v2)
-#  Environment: Google Colab
+#  Aoi Ichikawa Publication Intelligence Tracker (Cloud Run Edition)
 # ============================================
 
 import requests
@@ -12,10 +8,10 @@ import json
 import re
 import datetime
 import time
-import random
 import urllib.parse
 import pytz
 import os
+import sys
 from bs4 import BeautifulSoup
 from textblob import TextBlob
 from langdetect import detect
@@ -27,23 +23,19 @@ from tabulate import tabulate
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 
-# Try to import userdata for API keys
-try:
-    from google.colab import userdata
-except ImportError:
-    userdata = None
-
 # ============================================
-#  USER SETTINGS
+#  ENVIRONMENT VARIABLES
 # ============================================
 
-# ★ここにSlackの「Bot User OAuth Token」を貼り付けてください（xoxb-...）
-SLACK_BOT_TOKEN = "xoxb-10016228943475-10016257002835-5cXsY5tsEJ59kiFlZ5CZGayT"
+# GitHub ActionsやColabでのハードコーディングをやめ、環境変数から取得します
+# Cloud Runの設定画面でこの値を入力することになります
+SLACK_BOT_TOKEN = os.environ.get("SLACK_BOT_TOKEN")
+SLACK_CHANNEL_ID = os.environ.get("SLACK_CHANNEL_ID")
 
-# SlackチャンネルID（投稿先のチャンネルID）
-SLACK_CHANNEL_ID = "C0A0G6RG1DH" 
+if not SLACK_BOT_TOKEN:
+    print("⚠️ Warning: SLACK_BOT_TOKEN is not set. Slack notifications will fail.")
 
-# User's Paper DOIs
+# User's Paper DOIs (変更なし)
 DOIs = [
     {
         "doi": "10.31224/5289", 
@@ -80,13 +72,17 @@ DOIs = [
 translator = Translator()
 engrxiv_cache = {}
 
-# ---- Slack Diagnostic & Upload Functions (New) ----
+# ---- Slack Diagnostic & Upload Functions ----
 
 def diagnose_and_connect(token, channel_id):
     """
     Diagnoses Slack connection status, Bot identity, and Channel membership.
     """
     print("\n🏥 Slack Connection Diagnosis...")
+    if not token:
+        print("   ❌ Token is missing.")
+        return False
+
     client = WebClient(token=token)
     
     # 1. Auth Test
@@ -100,6 +96,10 @@ def diagnose_and_connect(token, channel_id):
         return False
 
     # 2. Channel Check
+    if not channel_id:
+        print("   ⚠️ Channel ID is missing. Skipping channel check.")
+        return True
+
     print(f"   🔎 Checking access to channel: {channel_id} ...")
     try:
         info = client.conversations_info(channel=channel_id)
@@ -117,22 +117,15 @@ def diagnose_and_connect(token, channel_id):
     except SlackApiError as e:
         error = e.response['error']
         print(f"   ❌ Channel Check Failed: {error}")
-        if error == "channel_not_found":
-            print("      👉 Channel ID seems wrong. Check if it starts with 'C'.")
         return False
 
 def upload_file_to_slack(token, channel_id, filepath, title):
-    """
-    Uploads a file using the robust files_upload_v2 method (Slack SDK).
-    Fixes 'method_deprecated' error by using the official v2 method.
-    """
     if not os.path.exists(filepath):
         print(f"❌ File not found: {filepath}")
         return
     
     client = WebClient(token=token)
     try:
-        # files_upload_v2 handles the complex 3-step upload process automatically
         response = client.files_upload_v2(
             channel=channel_id,
             file=filepath,
@@ -163,6 +156,7 @@ def prefetch_engrxiv_search_results():
     search_url = "https://engrxiv.org/search/search?query=Aoi+Ichikawa"
     print(f"🔎 Prefetching engrXiv Search Results from: {search_url} ...")
     
+    # 疑似的なUser-Agentを設定してブロック回避を試みる
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
     }
@@ -412,7 +406,12 @@ total_dl = pd.to_numeric(df['Downloads'], errors='coerce').fillna(0).sum()
 df_for_avg = df[~df['Title'].str.contains("Technical Letter", case=False, na=False)]
 avg_dl = pd.to_numeric(df_for_avg['Downloads'], errors='coerce').dropna().mean()
 
-sv_tz = pytz.timezone('America/Los_Angeles')
+# Cloud Runのタイムゾーン対応
+try:
+    sv_tz = pytz.timezone('Asia/Tokyo') # 日本時間に変更
+except:
+    sv_tz = pytz.timezone('UTC')
+
 date_label = datetime.datetime.now(sv_tz).strftime('%Y-%m-%d %H:%M %Z')
 stats_text = f"As of: {date_label} | Total: {int(total_dl)} | Avg: {avg_dl:.1f}"
 
@@ -466,7 +465,7 @@ except Exception as e:
     img_filename = None
 
 # ---- Slack Upload ----
-if SLACK_BOT_TOKEN:
+if SLACK_BOT_TOKEN and SLACK_CHANNEL_ID:
     print("\n📨 Uploading to Slack...")
     
     # 1. Image
@@ -481,4 +480,4 @@ if SLACK_BOT_TOKEN:
     
     print("✨ All reports sent!")
 else:
-    print("⚪ Slack Bot Token not set. Files saved locally.")
+    print("⚪ Slack Bot Token or Channel ID not set. Files saved locally.")
