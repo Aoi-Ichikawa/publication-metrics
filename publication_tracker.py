@@ -1,5 +1,5 @@
 # ============================================
-#  Aoi Ichikawa Publication Intelligence Tracker (Cloud Run Edition)
+#  Aoi Ichikawa Publication Intelligence Tracker (Cloud Run Edition - v2 Graph Fix)
 # ============================================
 
 import requests
@@ -27,15 +27,13 @@ from slack_sdk.errors import SlackApiError
 #  ENVIRONMENT VARIABLES
 # ============================================
 
-# GitHub ActionsやColabでのハードコーディングをやめ、環境変数から取得します
-# Cloud Runの設定画面でこの値を入力することになります
 SLACK_BOT_TOKEN = os.environ.get("SLACK_BOT_TOKEN")
 SLACK_CHANNEL_ID = os.environ.get("SLACK_CHANNEL_ID")
 
 if not SLACK_BOT_TOKEN:
     print("⚠️ Warning: SLACK_BOT_TOKEN is not set. Slack notifications will fail.")
 
-# User's Paper DOIs (変更なし)
+# User's Paper DOIs
 DOIs = [
     {
         "doi": "10.31224/5289", 
@@ -156,7 +154,6 @@ def prefetch_engrxiv_search_results():
     search_url = "https://engrxiv.org/search/search?query=Aoi+Ichikawa"
     print(f"🔎 Prefetching engrXiv Search Results from: {search_url} ...")
     
-    # 疑似的なUser-Agentを設定してブロック回避を試みる
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
     }
@@ -406,9 +403,8 @@ total_dl = pd.to_numeric(df['Downloads'], errors='coerce').fillna(0).sum()
 df_for_avg = df[~df['Title'].str.contains("Technical Letter", case=False, na=False)]
 avg_dl = pd.to_numeric(df_for_avg['Downloads'], errors='coerce').dropna().mean()
 
-# Cloud Runのタイムゾーン対応
 try:
-    sv_tz = pytz.timezone('Asia/Tokyo') # 日本時間に変更
+    sv_tz = pytz.timezone('Asia/Tokyo')
 except:
     sv_tz = pytz.timezone('UTC')
 
@@ -447,7 +443,16 @@ def parse_rate_safe(x):
 df_plot['Rate_Val'] = df_plot['DL Rate'].apply(parse_rate_safe)
 
 fig = go.Figure()
-fig.add_trace(go.Bar(x=df_plot['Title'].str[:20]+"...", y=df_plot['Downloads'], name='Downloads', marker_color='#482ff7', text=df_plot['Bar_Text'], textposition='auto'))
+# ★修正ポイント：textangle=0 を追加して回転を防止
+fig.add_trace(go.Bar(
+    x=df_plot['Title'].str[:20]+"...", 
+    y=df_plot['Downloads'], 
+    name='Downloads', 
+    marker_color='#482ff7', 
+    text=df_plot['Bar_Text'], 
+    textposition='auto', 
+    textangle=0 
+))
 fig.add_trace(go.Scatter(x=df_plot['Title'].str[:20]+"...", y=df_plot['Rate_Val'], name='DL Rate (%)', yaxis='y2', line=dict(color='#ff6b6b', width=3), mode='lines+markers', connectgaps=False))
 
 fig.add_annotation(text=f"<b>Stats ({date_label})</b><br>Total DL: {int(total_dl)}<br>Avg DL (excl. Letter): {avg_dl:.1f}", xref="paper", yref="paper", x=1.0, y=0.01, xanchor='right', yanchor='bottom', showarrow=False, bgcolor="rgba(255,255,255,0.9)", bordercolor="#333", borderwidth=1, font=dict(size=14, color="black"), align="right")
