@@ -1,5 +1,9 @@
 # ============================================
-#  Aoi Ichikawa Publication Intelligence Tracker (Cloud Run Edition - v2 Graph Fix)
+#  Aoi Ichikawa Publication Intelligence Tracker (Robust Edition v30 - Simple Upload Fix)
+#  Target: Zenodo (API), engrXiv (Search Page Scraping), Altmetric, ResearchGate
+#  Social: Altmetric, Hacker News + Sentiment Analysis
+#  Output: CSV, HTML, PNG (Image), Markdown (Pretty Table), Slack File Upload (v2)
+#  Environment: Google Cloud Run Edition - v2 Graph Fix
 # ============================================
 
 import requests
@@ -404,7 +408,8 @@ df_for_avg = df[~df['Title'].str.contains("Technical Letter", case=False, na=Fal
 avg_dl = pd.to_numeric(df_for_avg['Downloads'], errors='coerce').dropna().mean()
 
 try:
-    sv_tz = pytz.timezone('Asia/Tokyo')
+    # ★修正ポイント：シリコンバレー時間に戻しました
+    sv_tz = pytz.timezone('America/Los_Angeles') 
 except:
     sv_tz = pytz.timezone('UTC')
 
