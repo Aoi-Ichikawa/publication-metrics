@@ -1,0 +1,14 @@
+requests
+pandas
+plotly
+beautifulsoup4
+textblob
+googletrans==4.0.0-rc1
+langdetect
+lxml
+tqdm
+googlesearch-python
+pytz
+tabulate
+slack_sdk
+kaleido==0.2.1
